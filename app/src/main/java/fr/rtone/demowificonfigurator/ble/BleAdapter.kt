@@ -3,6 +3,7 @@ package fr.rtone.demowificonfigurator.ble
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -13,11 +14,9 @@ import android.os.Handler
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import android.widget.Toast
-import fr.rtone.demowificonfigurator.ble.BleHandler.Companion.BLE_HANDLER_BLE_OFF
-import fr.rtone.demowificonfigurator.ble.BleHandler.Companion.BLE_HANDLER_BLE_ON
-import fr.rtone.demowificonfigurator.ble.BleHandler.Companion.BLE_HANDLER_DEVICE_FOUND
-import fr.rtone.demowificonfigurator.ble.BleHandler.Companion.BLE_HANDLER_SCANNED
-import fr.rtone.demowificonfigurator.ble.BleHandler.Companion.BLE_HANDLER_SCANNING
+import fr.rtone.demowificonfigurator.ble.handler.BleHandler
+import fr.rtone.demowificonfigurator.ble.handler.BleHandlerType
+import fr.rtone.demowificonfigurator.ble.handler.BleParam
 
 class BleAdapter(val activity: AppCompatActivity){
     companion object{
@@ -125,7 +124,7 @@ class BleAdapter(val activity: AppCompatActivity){
             stopScan()
         }, 15000)
         bluetoothAdapter.startDiscovery()
-        this@BleAdapter.applyAction(BLE_HANDLER_SCANNING, null)
+        this@BleAdapter.applyAction(BleHandlerType.SCANNING)
         Toast.makeText(activity, "Scanning devices", Toast.LENGTH_LONG).show()
     }
 
@@ -137,7 +136,7 @@ class BleAdapter(val activity: AppCompatActivity){
         }
         Log.d(TAG, "Stopping scan...")
         bluetoothAdapter.cancelDiscovery()
-        this.applyAction(BLE_HANDLER_SCANNED, null)
+        this@BleAdapter.applyAction(BleHandlerType.SCANNED)
     }
 
     private val bluetoothHandler = object : BroadcastReceiver() {
@@ -148,18 +147,18 @@ class BleAdapter(val activity: AppCompatActivity){
 
                     val client = BleClient(device, this@BleAdapter)
                     devices += (client.device.address to client)
-                    this@BleAdapter.applyAction(BLE_HANDLER_DEVICE_FOUND, client)
+                    this@BleAdapter.applyAction(BleHandlerType.DEVICE_FOUND, client)
                     Log.d(TAG, "New device found: ${device.address} ${device.name}")
                 }
                 BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> { //Discovery end
-                    this@BleAdapter.applyAction(BLE_HANDLER_SCANNED, null)
+                    this@BleAdapter.applyAction(BleHandlerType.SCANNED)
                 }
                 BluetoothAdapter.ACTION_STATE_CHANGED -> {
                     val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                     if (state == BluetoothAdapter.STATE_ON)
-                        this@BleAdapter.applyAction(BLE_HANDLER_BLE_ON, null)
+                        this@BleAdapter.applyAction(BleHandlerType.BT_ON)
                     else if (state == BluetoothAdapter.STATE_OFF)
-                        this@BleAdapter.applyAction(BLE_HANDLER_BLE_OFF, null)
+                        this@BleAdapter.applyAction(BleHandlerType.BT_OFF)
                 }
                 else -> {
                     Log.w(TAG, "Action X$action catched")
@@ -168,10 +167,11 @@ class BleAdapter(val activity: AppCompatActivity){
         }
     }
 
-    private fun applyAction(action: Int, client: BleClient?){
+    fun applyAction(action: BleHandlerType, client: BleClient? = null, gatt: BluetoothGatt? = null){
         for (entry in handlers){
-            if (entry.key and action > 0){
-                entry.value.apply(action, client, null)
+            if (entry.key and action.uuid > 0){
+                val param = BleParam(client, gatt)
+                action.execute(entry.value, param)
             }
         }
     }

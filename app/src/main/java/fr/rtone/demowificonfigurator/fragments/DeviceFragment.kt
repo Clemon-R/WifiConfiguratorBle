@@ -16,11 +16,12 @@ import fr.rtone.demowificonfigurator.MainActivity
 import fr.rtone.demowificonfigurator.R
 import fr.rtone.demowificonfigurator.ble.BleAdapter
 import fr.rtone.demowificonfigurator.ble.BleClient
-import fr.rtone.demowificonfigurator.ble.BleHandler
-import fr.rtone.demowificonfigurator.ble.handlers.IBleDeviceFound
-import fr.rtone.demowificonfigurator.ble.handlers.IBleOff
-import fr.rtone.demowificonfigurator.ble.handlers.IBleScanned
-import fr.rtone.demowificonfigurator.ble.handlers.IBleScanning
+import fr.rtone.demowificonfigurator.ble.handler.BleHandler
+import fr.rtone.demowificonfigurator.ble.handler.BleParam
+import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleDeviceFound
+import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleOff
+import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleScanned
+import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleScanning
 
 
 interface OnBleSelected {
@@ -107,21 +108,26 @@ class DeviceFragment: Fragment(), OnBleSelected {
         transaction.commit()
     }
 
-    inner class BleListener(private val adapter: BleAdapter) : BleHandler(adapter), IBleScanning, IBleScanned, IBleDeviceFound, IBleOff {
-        override fun onBleOff() {
+    inner class BleListener(private val adapter: BleAdapter) : BleHandler(adapter),
+        IBleScanning,
+        IBleScanned,
+        IBleDeviceFound,
+        IBleOff {
+
+        override fun onBleOff(param: BleParam) {
             if (adapter.scanning)
                 adapter.stopScan()
             else
-                onScanned()
+              onScanned(param)
         }
 
-        override fun onDeviceFound(client: BleClient) {
+        override fun onDeviceFound(param: BleParam) {
             Log.d(TAG, "Device found")
-            items += client
+            items += param.client!!
             recycler?.adapter?.notifyDataSetChanged()
         }
 
-        override fun onScanning() {
+        override fun onScanning(param: BleParam) {
             Log.d(TAG, "Start scan")
             items.clear()
             recycler?.adapter?.notifyDataSetChanged()
@@ -131,13 +137,12 @@ class DeviceFragment: Fragment(), OnBleSelected {
                 pbScan!!.visibility = View.VISIBLE
         }
 
-        override fun onScanned() {
+        override fun onScanned(param: BleParam) {
             Log.d(TAG, "End scan")
             if (btnScan != null)
                 btnScan!!.isEnabled = true
             if (pbScan != null)
                 pbScan!!.visibility = View.GONE
         }
-
     }
 }

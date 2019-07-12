@@ -1,12 +1,10 @@
 package fr.rtone.demowificonfigurator.fragments
 
 import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.content.Context
 import android.os.Bundle
 import android.support.v4.app.Fragment
-import android.text.Editable
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -21,8 +19,12 @@ import fr.rtone.demowificonfigurator.MainActivity
 import fr.rtone.demowificonfigurator.R
 import fr.rtone.demowificonfigurator.ble.BleAdapter
 import fr.rtone.demowificonfigurator.ble.BleClient
-import fr.rtone.demowificonfigurator.ble.BleHandler
-import fr.rtone.demowificonfigurator.ble.handlers.*
+import fr.rtone.demowificonfigurator.ble.handler.BleHandler
+import fr.rtone.demowificonfigurator.ble.handler.BleParam
+import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleCharRead
+import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleCharWrite
+import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleDisconnected
+import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleServiceDiscovered
 import java.lang.Thread.sleep
 
 // TODO: Rename parameter arguments, choose names that match
@@ -206,20 +208,24 @@ class ConnectedFragment : Fragment() {
         }
     }
 
-    inner class BleListener(adapter: BleAdapter) : BleHandler(adapter), IBleDisconnected, IBleServiceDiscovered, IBleCharRead, IBleCharWrite {
-        override fun onBleCharWrite(client: BleClient, gatt: BluetoothGatt) {
+    inner class BleListener(adapter: BleAdapter) : BleHandler(adapter),
+	    IBleDisconnected,
+	    IBleServiceDiscovered,
+	    IBleCharRead,
+	    IBleCharWrite {
+        override fun onBleCharWrite(param: BleParam) {
             responseState = true
         }
 
-        override fun onBleCharRead(client: BleClient, gatt: BluetoothGatt) {
+        override fun onBleCharRead(param: BleParam) {
             responseState = true
         }
 
-        override fun onBleServiceDiscovered(client: BleClient, gatt: BluetoothGatt) {
+        override fun onBleServiceDiscovered(param: BleParam) {
             Log.d(TAG, "New services found, checking uuid on 16 bits")
             var serviceWifiFound = false
-            bleGatt = gatt
-            for (service in gatt.services){
+            bleGatt = param.gatt!!
+            for (service in bleGatt.services){
                 when (service.uuid.toString().substring(4, 8).toInt(16)){
                     WIFI_SERVICE -> {
                         Log.d(TAG, "Wifi service found !")
@@ -248,7 +254,7 @@ class ConnectedFragment : Fragment() {
             }
         }
 
-        override fun onBleDisconnected(client: BleClient) {
+        override fun onBleDisconnected(param: BleParam) {
             context.runOnUiThread {
                 btnConnect.isEnabled = true
                 btnDisconnect.isEnabled = false
