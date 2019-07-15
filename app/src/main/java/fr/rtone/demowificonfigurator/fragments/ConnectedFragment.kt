@@ -47,8 +47,6 @@ class ConnectedFragment : Fragment() {
     private lateinit var bleGatt: BluetoothGatt
     private lateinit var wifiService: BluetoothGattService
 
-    private var responseState = false
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (BleAdapter.instance() == null)
@@ -121,29 +119,12 @@ class ConnectedFragment : Fragment() {
                     it.isEnabled = false
                     btnDisconnect.isEnabled = false
                     pbConnect.visibility = View.VISIBLE
-                    Thread{
-                        ssid.setValue(editSsid.text.toString())
-                        password.setValue(editPassword.text.toString())
-                        action.value = byteArrayOf(0)
 
-                        responseState = false
-                        bleGatt.writeCharacteristic(ssid)
-                        while (!responseState)
-                            sleep(10)
-                        responseState = false
-                        bleGatt.writeCharacteristic(password)
-                        while (!responseState)
-                            sleep(10)
-                        responseState = false
-                        bleGatt.writeCharacteristic(action)
-                        while (!responseState)
-                            sleep(10)
-                        context.runOnUiThread {
-                            it.isEnabled = true
-                            btnDisconnect.isEnabled = true
-                            pbConnect.visibility = View.GONE
-                        }
-                    }.start()
+                    ssid.setValue(editSsid.text.toString())
+                    password.setValue(editPassword.text.toString())
+                    action.value = byteArrayOf(0)
+
+                    bleGatt.writeCharacteristic(ssid)
                 }
             }
         }
@@ -188,23 +169,9 @@ class ConnectedFragment : Fragment() {
         if (!client.connected)
             return
         val ssid = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == SSID_CHAR }
-        val password = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == PASSWORD_CHAR }
 
-        if (ssid != null && password != null){
-            responseState = false
+        if (ssid != null){
             bleGatt.readCharacteristic(ssid)
-            while (!responseState)
-                sleep(10)
-            responseState = false
-            bleGatt.readCharacteristic(password)
-            while (!responseState)
-                sleep(10)
-            context.runOnUiThread {
-                editSsid.text.clear()
-                editSsid.text.append(ssid.getStringValue(0))
-                editPassword.text.clear()
-                editPassword.text.append(password.getStringValue(0))
-            }
         }
     }
 
@@ -214,11 +181,43 @@ class ConnectedFragment : Fragment() {
 	    IBleCharRead,
 	    IBleCharWrite {
         override fun onBleCharWrite(param: BleParam) {
-            responseState = true
+            when (param.char?.uuid.toString().substring(4, 8).toInt(16)){
+                SSID_CHAR -> {
+                    val password = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == PASSWORD_CHAR }
+                    if (password != null)
+                        bleGatt.writeCharacteristic(password)
+                }
+                PASSWORD_CHAR -> {
+                    val action = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == ACTION_CHAR }
+                    if (action != null)
+                        bleGatt.writeCharacteristic(action)
+                }
+                ACTION_CHAR -> {
+                    context.runOnUiThread {
+                        view?.findViewById<Button>(R.id.btnSave)?.isEnabled = true
+                        btnDisconnect.isEnabled = true
+                        pbConnect.visibility = View.GONE
+                    }
+                }
+            }
         }
 
         override fun onBleCharRead(param: BleParam) {
-            responseState = true
+            when (param.char?.uuid.toString().substring(4, 8).toInt(16)){
+                SSID_CHAR -> {
+                    context.runOnUiThread {
+                        editSsid.text.replace(0, editSsid.text.length, param.char!!.getStringValue(0))
+                    }
+                    val password = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == PASSWORD_CHAR }
+                    if (password != null)
+                        bleGatt.readCharacteristic(password)
+                }
+                PASSWORD_CHAR -> {
+                    context.runOnUiThread {
+                        editPassword.text.replace(0, editPassword.text.length, param.char!!.getStringValue(0))
+                    }
+                }
+            }
         }
 
         override fun onBleServiceDiscovered(param: BleParam) {

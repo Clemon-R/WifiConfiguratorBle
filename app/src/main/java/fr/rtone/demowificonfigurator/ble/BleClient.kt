@@ -1,8 +1,7 @@
 package fr.rtone.demowificonfigurator.ble
 
 import android.bluetooth.*
-import android.bluetooth.BluetoothGatt.GATT_READ_NOT_PERMITTED
-import android.bluetooth.BluetoothGatt.GATT_WRITE_NOT_PERMITTED
+import android.bluetooth.BluetoothGatt.*
 import android.util.Log
 import fr.rtone.demowificonfigurator.ble.handler.BleHandlerType
 
@@ -13,18 +12,19 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
         private val TAG = "BleClient"
     }
     var bluetoothGatt:BluetoothGatt ?= null
-    var connected: Boolean = false
+
+    var state: Int = BluetoothProfile.STATE_DISCONNECTED
 
     fun connect()
     {
-        if (this.connected){
-            Log.w(TAG, "Already connected")
+        if (this.state != BluetoothProfile.STATE_DISCONNECTED){
+            Log.w(TAG, "You need to be disconnected")
             return
         }
         Log.d(TAG, "Connecting...")
         if (bluetoothGatt == null){
             bluetoothGatt = device.connectGatt(adapter.activity,false,mBleGattCallBack)
-        } else {
+        } else if (adapter.bluetoothManager.getConnectionState(device, BluetoothProfile.GATT_SERVER) == BluetoothProfile.STATE_DISCONNECTED) {
             bluetoothGatt!!.connect()
         }
     }
@@ -32,11 +32,13 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
     fun disconnect()
     {
         Log.d(TAG, "Disconnecting...")
-        if (this.bluetoothGatt == null || !this.connected){
-            Log.w(TAG, "Already disconnected")
+        if (this.state != BluetoothProfile.STATE_CONNECTED){
+            Log.w(TAG, "You need to be connected")
             return
         }
-        this.bluetoothGatt!!.disconnect()
+        if (adapter.bluetoothManager.getConnectionState(device, BluetoothProfile.GATT_SERVER) == BluetoothProfile.STATE_CONNECTED){
+            this.bluetoothGatt!!.disconnect()
+        }
     }
 
     private val mBleGattCallBack: BluetoothGattCallback by lazy {
@@ -46,17 +48,18 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
                 super.onConnectionStateChange(gatt, status, newState)
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
-                        connected = true
                         adapter.applyAction(BleHandlerType.DEVICE_CONNECTED, this@BleClient)
                         bluetoothGatt!!.discoverServices()
                     }
                     BluetoothProfile.STATE_CONNECTING ->  adapter.applyAction(BleHandlerType.DEVICE_CONNECTING, this@BleClient)
                     BluetoothProfile.STATE_DISCONNECTED -> {
-                        connected = false
+                        bluetoothGatt!!.close()
+                        bluetoothGatt = null
                         adapter.applyAction(BleHandlerType.DEVICE_DISCONNECTED, this@BleClient)
                     }
                     BluetoothProfile.STATE_DISCONNECTING -> adapter.applyAction(BleHandlerType.DEVICE_DISCONNECTING, this@BleClient)
                 }
+                state = newState
                 when (status) {
                     BluetoothGatt.GATT_SUCCESS ->  Log.d(TAG, "Successfully created GATT")
                     BluetoothGatt.GATT_FAILURE -> Log.e(TAG, "Error in creating GATT")
@@ -74,9 +77,7 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
                 status: Int
             ) {
                 super.onCharacteristicRead(gatt, characteristic, status)
-                if (status == GATT_READ_NOT_PERMITTED)
-                    return
-                adapter.applyAction(BleHandlerType.CHAR_READ, this@BleClient, gatt)
+                adapter.applyAction(BleHandlerType.CHAR_READ, this@BleClient, gatt, characteristic, status != GATT_READ_NOT_PERMITTED)
             }
 
             override fun onCharacteristicWrite(
@@ -85,9 +86,7 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
                 status: Int
             ) {
                 super.onCharacteristicWrite(gatt, characteristic, status)
-                if (status == GATT_WRITE_NOT_PERMITTED)
-                    return
-                adapter.applyAction(BleHandlerType.CHAR_WRITE, this@BleClient, gatt)
+                adapter.applyAction(BleHandlerType.CHAR_WRITE, this@BleClient, gatt, characteristic, status != GATT_WRITE_NOT_PERMITTED)
             }
 
             override fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?) {

@@ -37,10 +37,12 @@ class DeviceFragment: Fragment(), OnBleSelected {
     private lateinit var context: MainActivity
     private lateinit var listener: BleListener
     private val items: MutableList<BleClient> = mutableListOf()
-    private var recycler: RecyclerView? = null
 
-    private var btnScan: Button? = null
-    private var pbScan: ProgressBar? = null
+    private lateinit var recycler: RecyclerView
+
+    private lateinit var btnStartScan: Button
+    private lateinit var btnStopScan: Button
+    private lateinit var pbScan: ProgressBar
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
@@ -56,27 +58,27 @@ class DeviceFragment: Fragment(), OnBleSelected {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_device_list, container, false)
 
-        btnScan = view.findViewById<Button>(R.id.btnScan)
-        pbScan = view.findViewById<ProgressBar>(R.id.pbScan)
+        btnStartScan = view.findViewById(R.id.btnScanStart)
+        btnStopScan = view.findViewById(R.id.btnScanStop)
+        pbScan = view.findViewById(R.id.pbScan)
         recycler = view.findViewById<RecyclerView>(R.id.listDevices)
-        if (btnScan != null) {
-            btnScan!!.setOnClickListener {
-                BleAdapter.instance()!!.startScan()
-            }
+
+        btnStartScan.setOnClickListener {
+            BleAdapter.instance()!!.startScan()
+        }
+        btnStopScan.setOnClickListener {
+            BleAdapter.instance()!!.stopScan()
         }
 
-        if (pbScan != null)
-            pbScan!!.visibility = View.GONE
+        pbScan.visibility = View.GONE
 
         // Set the adapter
-        if (recycler != null) {
-            with(recycler!!) {
-                layoutManager = LinearLayoutManager(context)
-                adapter = BleDeviceRecyclerViewAdapter(
-                    items,
-                    this@DeviceFragment
-                )
-            }
+        with(recycler) {
+            layoutManager = LinearLayoutManager(context)
+            adapter = BleDeviceRecyclerViewAdapter(
+                items,
+                this@DeviceFragment
+            )
         }
         return view
     }
@@ -90,8 +92,8 @@ class DeviceFragment: Fragment(), OnBleSelected {
         }
     }
 
-    override fun onDetach() {
-        super.onDetach()
+    override fun onDestroy() {
+        super.onDestroy()
         listener.destroy()
     }
 
@@ -100,10 +102,8 @@ class DeviceFragment: Fragment(), OnBleSelected {
         if (BleAdapter.instance()!!.scanning)
             BleAdapter.instance()!!.stopScan()
         val transaction = activity!!.supportFragmentManager.beginTransaction()
-        //transaction.add(R.id.content, ConnectedFragment.newInstance(client.device.address))
         transaction.replace(R.id.content, ConnectedFragment.newInstance(client.device.address))
         transaction.addToBackStack(null)
-        //transaction.remove(this)
 
         transaction.commit()
     }
@@ -122,27 +122,27 @@ class DeviceFragment: Fragment(), OnBleSelected {
         }
 
         override fun onDeviceFound(param: BleParam) {
+            if (items.contains(param.client))
+                return
             Log.d(TAG, "Device found")
             items += param.client!!
-            recycler?.adapter?.notifyDataSetChanged()
+            recycler.adapter?.notifyDataSetChanged()
         }
 
         override fun onScanning(param: BleParam) {
             Log.d(TAG, "Start scan")
             items.clear()
-            recycler?.adapter?.notifyDataSetChanged()
-            if (btnScan != null)
-                btnScan!!.isEnabled = false
-            if (pbScan != null)
-                pbScan!!.visibility = View.VISIBLE
+            recycler.adapter?.notifyDataSetChanged()
+            btnStartScan.isEnabled = false
+            btnStopScan.isEnabled = true
+            pbScan.visibility = View.VISIBLE
         }
 
         override fun onScanned(param: BleParam) {
             Log.d(TAG, "End scan")
-            if (btnScan != null)
-                btnScan!!.isEnabled = true
-            if (pbScan != null)
-                pbScan!!.visibility = View.GONE
+            btnStartScan.isEnabled = true
+            btnStopScan.isEnabled = false
+            pbScan.visibility = View.GONE
         }
     }
 }

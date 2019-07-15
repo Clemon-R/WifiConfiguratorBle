@@ -1,10 +1,7 @@
 package fr.rtone.demowificonfigurator.ble
 
 import android.Manifest
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothManager
+import android.bluetooth.*
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -23,6 +20,7 @@ class BleAdapter(val activity: AppCompatActivity){
         private val TAG = "BleAdapter"
         private val REQUEST_ENABLE_BT = 0
         private val REQUEST_PERMISSION_LOCATION = 1
+        private val SCAN_TIMEOUT = 15 //Seconds
 
         private var instance: BleAdapter? = null
 
@@ -41,34 +39,42 @@ class BleAdapter(val activity: AppCompatActivity){
         get() = bluetoothAdapter.isDiscovering
     val devices: MutableMap<String, BleClient> = mutableMapOf()
 
-    private val bluetoothAdapter: BluetoothAdapter
+    val bluetoothAdapter: BluetoothAdapter
+    val bluetoothManager: BluetoothManager
     val handlers: MutableMap<Int, BleHandler> = mutableMapOf()
 
     init {
-        val bluetoothManager = activity.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothManager = activity.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
         if (bluetoothAdapter == null)
             throw Exception("Missing a bluetoothAdapter")
         instance = this
+        this.init()
     }
 
-    private fun PackageManager.missingSystemFeature(name: String): Boolean = !hasSystemFeature(name)
-    private fun checkBluetoothEnabled() : Boolean
+    private fun isBluetoothEnabled() : Boolean
     {
-        activity.packageManager.takeIf { it.missingSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) }?.also {
+        activity.packageManager.takeIf { !it.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) }?.also {
             Toast.makeText(activity, "BLE not supported", Toast.LENGTH_SHORT).show()
             activity.finish()
         }
         return bluetoothAdapter.isEnabled
     }
 
-    private fun checkLocationPermission() : Boolean
+    private fun isLocationPermission() : Boolean
     {
         return activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
                 activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun askPermissionLocation()
+    private fun enableBluetooth()
+    {
+        Log.d(TAG, "Ask to enable bluetooth")
+        val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+        activity.startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
+    }
+
+    private fun enablePermissionLocation()
     {
         Log.d(TAG, "Ask permission for location")
         activity.requestPermissions(
@@ -77,13 +83,6 @@ class BleAdapter(val activity: AppCompatActivity){
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ), REQUEST_PERMISSION_LOCATION
         )
-    }
-
-    private fun askEnableBluetooth()
-    {
-        Log.d(TAG, "Ask to enable bluetooth")
-        val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-        activity.startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
     }
 
     private fun init()
@@ -108,24 +107,22 @@ class BleAdapter(val activity: AppCompatActivity){
 
     fun  startScan()
     {
-        this.init()
         if (scanning){
             Log.w(TAG, "Already not scanning")
             return
         }
-        if (!checkBluetoothEnabled()) {
-            askEnableBluetooth()
+        if (!isBluetoothEnabled()) {
+            enableBluetooth()
             return
+        } else if (!isLocationPermission()) {
+            enablePermissionLocation()
         }
-        else if (!checkLocationPermission())
-            askPermissionLocation()
         Log.d(TAG, "Starting scan...")
         timer.postDelayed({
             stopScan()
-        }, 15000)
+        }, 1000L * SCAN_TIMEOUT)
         bluetoothAdapter.startDiscovery()
-        this@BleAdapter.applyAction(BleHandlerType.SCANNING)
-        Toast.makeText(activity, "Scanning devices", Toast.LENGTH_LONG).show()
+        Toast.makeText(activity, "Searching devices...", Toast.LENGTH_LONG).show()
     }
 
     fun stopScan()
@@ -148,7 +145,9 @@ class BleAdapter(val activity: AppCompatActivity){
                     val client = BleClient(device, this@BleAdapter)
                     devices += (client.device.address to client)
                     this@BleAdapter.applyAction(BleHandlerType.DEVICE_FOUND, client)
-                    Log.d(TAG, "New device found: ${device.address} ${device.name}")
+                }
+                BluetoothAdapter.ACTION_DISCOVERY_STARTED -> {
+                    this@BleAdapter.applyAction(BleHandlerType.SCANNING)
                 }
                 BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> { //Discovery end
                     this@BleAdapter.applyAction(BleHandlerType.SCANNED)
@@ -161,16 +160,22 @@ class BleAdapter(val activity: AppCompatActivity){
                         this@BleAdapter.applyAction(BleHandlerType.BT_OFF)
                 }
                 else -> {
-                    Log.w(TAG, "Action X$action catched")
+                    Log.w(TAG, "Action $action catched")
                 }
             }
         }
     }
 
-    fun applyAction(action: BleHandlerType, client: BleClient? = null, gatt: BluetoothGatt? = null){
+    fun applyAction(
+        action: BleHandlerType,
+        client: BleClient? = null,
+        gatt: BluetoothGatt? = null,
+        char: BluetoothGattCharacteristic? = null,
+        permitted: Boolean? = null
+    ){
         for (entry in handlers){
             if (entry.key and action.uuid > 0){
-                val param = BleParam(client, gatt)
+                val param = BleParam(client, gatt, char, permitted)
                 action.execute(entry.value, param)
             }
         }
