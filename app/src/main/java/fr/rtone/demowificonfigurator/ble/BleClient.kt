@@ -13,11 +13,11 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
     }
     var bluetoothGatt:BluetoothGatt ?= null
 
-    var state: Int = BluetoothProfile.STATE_DISCONNECTED
+    var state: BleClientState = BleClientState.DISCONNECTED
 
     fun connect()
     {
-        if (this.state != BluetoothProfile.STATE_DISCONNECTED){
+        if (this.state != BleClientState.DISCONNECTED){
             Log.w(TAG, "You need to be disconnected")
             return
         }
@@ -32,7 +32,7 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
     fun disconnect()
     {
         Log.d(TAG, "Disconnecting...")
-        if (this.state != BluetoothProfile.STATE_CONNECTED){
+        if (this.state != BleClientState.DISCONNECTED){
             Log.w(TAG, "You need to be connected")
             return
         }
@@ -59,7 +59,7 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
                     }
                     BluetoothProfile.STATE_DISCONNECTING -> adapter.applyAction(BleHandlerType.DEVICE_DISCONNECTING, this@BleClient)
                 }
-                state = newState
+                state = BleClientState.fromBluetoothProfile(newState)
                 when (status) {
                     BluetoothGatt.GATT_SUCCESS ->  Log.d(TAG, "Successfully created GATT")
                     BluetoothGatt.GATT_FAILURE -> Log.e(TAG, "Error in creating GATT")

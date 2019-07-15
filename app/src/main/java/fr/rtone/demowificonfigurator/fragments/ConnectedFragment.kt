@@ -2,6 +2,7 @@ package fr.rtone.demowificonfigurator.fragments
 
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Bundle
 import android.support.v4.app.Fragment
@@ -19,6 +20,7 @@ import fr.rtone.demowificonfigurator.MainActivity
 import fr.rtone.demowificonfigurator.R
 import fr.rtone.demowificonfigurator.ble.BleAdapter
 import fr.rtone.demowificonfigurator.ble.BleClient
+import fr.rtone.demowificonfigurator.ble.BleClientState
 import fr.rtone.demowificonfigurator.ble.handler.BleHandler
 import fr.rtone.demowificonfigurator.ble.handler.BleParam
 import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleCharRead
@@ -166,10 +168,9 @@ class ConnectedFragment : Fragment() {
 
     private fun getFromBLEWifiData()
     {
-        if (!client.connected)
+        if (client.state != BleClientState.CONNECTED)
             return
         val ssid = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == SSID_CHAR }
-
         if (ssid != null){
             bleGatt.readCharacteristic(ssid)
         }
@@ -211,10 +212,21 @@ class ConnectedFragment : Fragment() {
                     val password = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == PASSWORD_CHAR }
                     if (password != null)
                         bleGatt.readCharacteristic(password)
+                    else
+                        context.runOnUiThread {
+                            btnDisconnect.isEnabled = true
+                            btnConnect.isEnabled = false
+                            pbConnect.visibility = View.GONE
+                            viewWifiConfigurator.visibility = View.VISIBLE
+                        }
                 }
                 PASSWORD_CHAR -> {
                     context.runOnUiThread {
                         editPassword.text.replace(0, editPassword.text.length, param.char!!.getStringValue(0))
+                        viewWifiConfigurator.visibility = View.VISIBLE
+                        btnDisconnect.isEnabled = true
+                        btnConnect.isEnabled = false
+                        pbConnect.visibility = View.GONE
                     }
                 }
             }
@@ -234,18 +246,15 @@ class ConnectedFragment : Fragment() {
                             getFromBLEWifiData()
                         }
                         job.start()
-                        context.runOnUiThread {
-                            viewWifiConfigurator.visibility = View.VISIBLE
-                        }
                     }
                 }
             }
-            context.runOnUiThread {
-                btnDisconnect.isEnabled = true
-                btnConnect.isEnabled = false
-                pbConnect.visibility = View.GONE
-            }
             if (!serviceWifiFound){
+                context.runOnUiThread {
+                    btnDisconnect.isEnabled = true
+                    btnConnect.isEnabled = false
+                    pbConnect.visibility = View.GONE
+                }
                 context.runOnUiThread {
                     lblError.visibility = View.VISIBLE
                     lblError.text = "Unhandle device"
