@@ -67,9 +67,6 @@ class DeviceFragment: Fragment(), OnBleSelected {
             BleAdapter.instance()!!.startScan()
             items.clear()
             recycler.adapter?.notifyDataSetChanged()
-            btnStartScan.isEnabled = false
-            btnStopScan.isEnabled = false
-            pbScan.visibility = View.VISIBLE
         }
         btnStopScan.setOnClickListener {
             BleAdapter.instance()!!.stopScan()
@@ -136,7 +133,9 @@ class DeviceFragment: Fragment(), OnBleSelected {
 
         override fun onScanning(param: BleParam) {
             Log.d(TAG, "Start scan")
+            btnStartScan.isEnabled = false
             btnStopScan.isEnabled = true
+            pbScan.visibility = View.VISIBLE
         }
 
         override fun onScanned(param: BleParam) {

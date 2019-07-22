@@ -116,13 +116,15 @@ class BleAdapter(val activity: AppCompatActivity){
         if (!isBluetoothEnabled()) {
             enableBluetooth()
             return
-        }
+        } else if (!isLocationPermission())
+            requestPermissionLocation()
         Log.d(TAG, "Starting scan...")
         timer.postDelayed({
             stopScan()
         }, 1000L * SCAN_TIMEOUT)
         if (!bluetoothAdapter.isDiscovering) {
             bluetoothAdapter.startDiscovery()
+            this@BleAdapter.applyAction(BleHandlerType.SCANNING)
             Toast.makeText(activity, "Searching devices...", Toast.LENGTH_LONG).show()
         }
     }
@@ -140,15 +142,9 @@ class BleAdapter(val activity: AppCompatActivity){
     }
 
     inner class BluetoothHandler : BroadcastReceiver() {
-        private var scanningCalled: Boolean = false
-
         override fun onReceive(context: Context, intent: Intent) {
             when (val action = intent.action){
                 BluetoothDevice.ACTION_FOUND -> { //Device find
-                    if (!scanningCalled){
-                        this@BleAdapter.applyAction(BleHandlerType.SCANNING)
-                        scanningCalled = true
-                    }
                     val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
 
                     val client = BleClient(device, this@BleAdapter)
@@ -156,8 +152,6 @@ class BleAdapter(val activity: AppCompatActivity){
                     this@BleAdapter.applyAction(BleHandlerType.DEVICE_FOUND, client)
                 }
                 BluetoothAdapter.ACTION_DISCOVERY_STARTED -> {
-                    scanningCalled = true
-                    this@BleAdapter.applyAction(BleHandlerType.SCANNING)
                 }
                 BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> { //Discovery end
                     this@BleAdapter.applyAction(BleHandlerType.SCANNED)

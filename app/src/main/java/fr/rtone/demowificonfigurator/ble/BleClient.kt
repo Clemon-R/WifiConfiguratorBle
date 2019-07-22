@@ -21,10 +21,11 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
             Log.w(TAG, "You need to be disconnected")
             return
         }
-        Log.d(TAG, "Connecting...")
         if (bluetoothGatt == null){
-            bluetoothGatt = device.connectGatt(adapter.activity,false,mBleGattCallBack)
+            Log.d(TAG, "Connecting...")
+            bluetoothGatt = device.connectGatt(adapter.activity,false,mBleGattCallBack, BluetoothDevice.TRANSPORT_LE)
         } else if (adapter.bluetoothManager.getConnectionState(device, BluetoothProfile.GATT_SERVER) == BluetoothProfile.STATE_DISCONNECTED) {
+            Log.d(TAG, "Connecting...")
             bluetoothGatt!!.connect()
         }
     }
@@ -32,7 +33,7 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
     fun disconnect()
     {
         Log.d(TAG, "Disconnecting...")
-        if (this.state != BleClientState.DISCONNECTED){
+        if (this.state != BleClientState.CONNECTED){
             Log.w(TAG, "You need to be connected")
             return
         }
