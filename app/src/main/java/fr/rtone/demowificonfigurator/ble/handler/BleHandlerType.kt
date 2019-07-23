@@ -4,7 +4,6 @@ import fr.rtone.demowificonfigurator.ble.handler.interfaces.*
 import kotlin.reflect.KCallable
 import kotlin.reflect.KParameter
 import kotlin.reflect.full.createType
-import kotlin.reflect.typeOf
 
 enum class BleHandlerType(private val id: Int, private val func: KCallable<Unit>){ //ATTENTION: Int = 32 bits so 31 id available
 	SCANNING(0, IBleScanning::onScanning),
@@ -18,7 +17,10 @@ enum class BleHandlerType(private val id: Int, private val func: KCallable<Unit>
 	DEVICE_DISCONNECTED(8, IBleDisconnected::onBleDisconnected),
 	SERVICE_DISCOVERED(9, IBleServiceDiscovered::onBleServiceDiscovered),
 	CHAR_READ(10, IBleCharRead::onBleCharRead),
-	CHAR_WRITE(11, IBleCharWrite::onBleCharWrite);
+	CHAR_WRITE(11, IBleCharWrite::onBleCharWrite),
+	NOT_BONDED(12, IBleNotBonded::onBleNotBonded),
+	BONDING(13, IBleBonding::onBleBonding),
+	BONDED(14, IBleBonded::onBleBonded);
 
 	val uuid = 1 shl id
 	val instanceParam: KParameter?

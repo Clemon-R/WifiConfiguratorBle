@@ -2,6 +2,10 @@ package fr.rtone.demowificonfigurator.ble
 
 import android.bluetooth.*
 import android.bluetooth.BluetoothGatt.*
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.util.Log
 import fr.rtone.demowificonfigurator.ble.handler.BleHandlerType
 
@@ -14,6 +18,27 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
     var bluetoothGatt:BluetoothGatt ?= null
 
     var state: BleClientState = BleClientState.DISCONNECTED
+
+    init {
+        this.init()
+    }
+
+    private fun init()
+    {
+        Log.d(TAG, "Init...")
+    }
+
+    private fun deinit()
+    {
+        Log.d(TAG, "Deinit...")
+    }
+
+    public fun destroy()
+    {
+        if (this.state == BleClientState.CONNECTED)
+            this.disconnect()
+        this.deinit()
+    }
 
     fun connect()
     {
@@ -49,16 +74,19 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
                 super.onConnectionStateChange(gatt, status, newState)
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
-                        adapter.applyAction(BleHandlerType.DEVICE_CONNECTED, this@BleClient)
+                        adapter.applyAction(BleHandlerType.DEVICE_CONNECTED, this@BleClient, gatt)
                         bluetoothGatt!!.discoverServices()
                     }
-                    BluetoothProfile.STATE_CONNECTING ->  adapter.applyAction(BleHandlerType.DEVICE_CONNECTING, this@BleClient)
+                    BluetoothProfile.STATE_CONNECTING ->  adapter.applyAction(BleHandlerType.DEVICE_CONNECTING, this@BleClient, gatt)
                     BluetoothProfile.STATE_DISCONNECTED -> {
-                        bluetoothGatt!!.close()
+                        try {
+                            bluetoothGatt!!.close()
+                        }catch (e: Exception){
+                        }
                         bluetoothGatt = null
                         adapter.applyAction(BleHandlerType.DEVICE_DISCONNECTED, this@BleClient)
                     }
-                    BluetoothProfile.STATE_DISCONNECTING -> adapter.applyAction(BleHandlerType.DEVICE_DISCONNECTING, this@BleClient)
+                    BluetoothProfile.STATE_DISCONNECTING -> adapter.applyAction(BleHandlerType.DEVICE_DISCONNECTING, this@BleClient, gatt)
                 }
                 state = BleClientState.fromBluetoothProfile(newState)
                 when (status) {
@@ -78,7 +106,7 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
                 status: Int
             ) {
                 super.onCharacteristicRead(gatt, characteristic, status)
-                adapter.applyAction(BleHandlerType.CHAR_READ, this@BleClient, gatt, characteristic, status != GATT_READ_NOT_PERMITTED)
+                adapter.applyAction(BleHandlerType.CHAR_READ, this@BleClient, gatt, characteristic, status == GATT_SUCCESS)
             }
 
             override fun onCharacteristicWrite(
@@ -87,12 +115,35 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
                 status: Int
             ) {
                 super.onCharacteristicWrite(gatt, characteristic, status)
-                adapter.applyAction(BleHandlerType.CHAR_WRITE, this@BleClient, gatt, characteristic, status != GATT_WRITE_NOT_PERMITTED)
+                adapter.applyAction(BleHandlerType.CHAR_WRITE, this@BleClient, gatt, characteristic, status == GATT_SUCCESS)
             }
 
             override fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?) {
                 super.onCharacteristicChanged(gatt, characteristic)
                 Log.d(TAG,"onCharacteristicChanged: reading into the characteristic ${characteristic?.uuid}")
+            }
+        }
+    }
+
+    fun triggerAction(id: String, intent: Intent)
+    {
+        if (this.state != BleClientState.CONNECTED)
+            return
+        when (id){
+            BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
+                val state = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
+
+                when (state){
+                    BluetoothDevice.BOND_NONE -> {
+                        adapter.applyAction(BleHandlerType.NOT_BONDED, this@BleClient, bluetoothGatt)
+                    }
+                    BluetoothDevice.BOND_BONDING -> {
+                        adapter.applyAction(BleHandlerType.BONDING, this@BleClient, bluetoothGatt)
+                    }
+                    BluetoothDevice.BOND_BONDED -> {
+                        adapter.applyAction(BleHandlerType.BONDED, this@BleClient, bluetoothGatt)
+                    }
+                }
             }
         }
     }

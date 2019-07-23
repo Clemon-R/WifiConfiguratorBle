@@ -92,6 +92,9 @@ class BleAdapter(val activity: AppCompatActivity){
         Log.d(TAG, "Init...")
         activity.registerReceiver(bluetoothHandler, IntentFilter(BluetoothDevice.ACTION_FOUND))
         activity.registerReceiver(bluetoothHandler, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+        activity.registerReceiver(bluetoothHandler, IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED))
+        activity.registerReceiver(bluetoothHandler, IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_STARTED))
+        activity.registerReceiver(bluetoothHandler, IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED))
     }
 
     private fun deinit()
@@ -124,7 +127,6 @@ class BleAdapter(val activity: AppCompatActivity){
         }, 1000L * SCAN_TIMEOUT)
         if (!bluetoothAdapter.isDiscovering) {
             bluetoothAdapter.startDiscovery()
-            this@BleAdapter.applyAction(BleHandlerType.SCANNING)
             Toast.makeText(activity, "Searching devices...", Toast.LENGTH_LONG).show()
         }
     }
@@ -137,7 +139,6 @@ class BleAdapter(val activity: AppCompatActivity){
         Log.d(TAG, "Stopping scan...")
         if (bluetoothAdapter.isDiscovering){
             bluetoothAdapter.cancelDiscovery()
-            this@BleAdapter.applyAction(BleHandlerType.SCANNED)
         }
     }
 
@@ -147,11 +148,15 @@ class BleAdapter(val activity: AppCompatActivity){
                 BluetoothDevice.ACTION_FOUND -> { //Device find
                     val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
 
+                    if (devices.any { it.value.device.address == device.address })
+                        return
+
                     val client = BleClient(device, this@BleAdapter)
                     devices += (client.device.address to client)
                     this@BleAdapter.applyAction(BleHandlerType.DEVICE_FOUND, client)
                 }
                 BluetoothAdapter.ACTION_DISCOVERY_STARTED -> {
+                    this@BleAdapter.applyAction(BleHandlerType.SCANNING)
                 }
                 BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> { //Discovery end
                     this@BleAdapter.applyAction(BleHandlerType.SCANNED)
@@ -162,6 +167,16 @@ class BleAdapter(val activity: AppCompatActivity){
                         this@BleAdapter.applyAction(BleHandlerType.BT_ON)
                     else if (state == BluetoothAdapter.STATE_OFF)
                         this@BleAdapter.applyAction(BleHandlerType.BT_OFF)
+                }
+                BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
+                    val current = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
+
+                    for (device in devices){
+                        if (device.value.device.address == current.address){
+                            device.value.triggerAction(action, intent)
+                            break
+                        }
+                    }
                 }
                 else -> {
                     Log.w(TAG, "Action $action catched")

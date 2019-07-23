@@ -23,10 +23,7 @@ import fr.rtone.demowificonfigurator.ble.BleClient
 import fr.rtone.demowificonfigurator.ble.BleClientState
 import fr.rtone.demowificonfigurator.ble.handler.BleHandler
 import fr.rtone.demowificonfigurator.ble.handler.BleParam
-import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleCharRead
-import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleCharWrite
-import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleDisconnected
-import fr.rtone.demowificonfigurator.ble.handler.interfaces.IBleServiceDiscovered
+import fr.rtone.demowificonfigurator.ble.handler.interfaces.*
 import java.lang.Thread.sleep
 
 // TODO: Rename parameter arguments, choose names that match
@@ -81,6 +78,7 @@ class ConnectedFragment : Fragment() {
             client.connect()
             btnConnect.isEnabled = false
             pbConnect.visibility = View.VISIBLE
+            lblError.visibility = View.GONE
         }
         btnDisconnect.setOnClickListener {
             client.disconnect()
@@ -180,7 +178,32 @@ class ConnectedFragment : Fragment() {
 	    IBleDisconnected,
 	    IBleServiceDiscovered,
 	    IBleCharRead,
-	    IBleCharWrite {
+	    IBleCharWrite,
+        IBleNotBonded,
+        IBleBonding,
+        IBleBonded{
+
+        var needBond = false
+        var bondAvailable = false
+        var wifiServiceFound = false
+
+        override fun onBleNotBonded(param: BleParam) {
+            bondAvailable = false
+        }
+
+        override fun onBleBonding(param: BleParam) {
+            needBond = true
+        }
+
+        override fun onBleBonded(param: BleParam) {
+            bondAvailable = true
+            if (wifiServiceFound){
+                Thread {
+                    getFromBLEWifiData()
+                }.start()
+            }
+        }
+
         override fun onBleCharWrite(param: BleParam) {
             when (param.char?.uuid.toString().substring(4, 8).toInt(16)){
                 SSID_CHAR -> {
@@ -234,31 +257,32 @@ class ConnectedFragment : Fragment() {
 
         override fun onBleServiceDiscovered(param: BleParam) {
             Log.d(TAG, "New services found, checking uuid on 16 bits")
-            var serviceWifiFound = false
             bleGatt = param.gatt!!
             for (service in bleGatt.services){
                 when (service.uuid.toString().substring(4, 8).toInt(16)){
                     WIFI_SERVICE -> {
                         Log.d(TAG, "Wifi service found !")
-                        serviceWifiFound = true
+                        wifiServiceFound = true
                         wifiService = service
-                        val job = Thread{
-                            getFromBLEWifiData()
+                        context.runOnUiThread { viewWifiConfigurator.visibility = View.VISIBLE}
+                        if (!needBond || bondAvailable) {
+                            Thread {
+                                getFromBLEWifiData()
+                            }.start()
                         }
-                        job.start()
                     }
                 }
             }
-            if (!serviceWifiFound){
-                context.runOnUiThread {
-                    btnDisconnect.isEnabled = true
-                    btnConnect.isEnabled = false
-                    pbConnect.visibility = View.GONE
-                }
+            if (!wifiServiceFound) {
                 context.runOnUiThread {
                     lblError.visibility = View.VISIBLE
                     lblError.text = "Unhandle device"
                 }
+            }
+            context.runOnUiThread {
+                btnDisconnect.isEnabled = true
+                btnConnect.isEnabled = false
+                pbConnect.visibility = View.GONE
             }
         }
 
