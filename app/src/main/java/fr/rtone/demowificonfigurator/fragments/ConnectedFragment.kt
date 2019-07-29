@@ -1,8 +1,8 @@
 package fr.rtone.demowificonfigurator.fragments
 
 import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCharacteristic.FORMAT_UINT16
 import android.bluetooth.BluetoothGattService
-import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Bundle
 import android.support.v4.app.Fragment
@@ -11,9 +11,14 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
-import fr.rtone.demowificonfigurator.BleConstant.Companion.ACTION_CHAR
+import fr.rtone.demowificonfigurator.BleConstant.Companion.MQTT_ACTION_CHAR
+import fr.rtone.demowificonfigurator.BleConstant.Companion.MQTT_SERVICE
+import fr.rtone.demowificonfigurator.BleConstant.Companion.WIFI_ACTION_CHAR
 import fr.rtone.demowificonfigurator.BleConstant.Companion.PASSWORD_CHAR
+import fr.rtone.demowificonfigurator.BleConstant.Companion.PORT_CHAR
+import fr.rtone.demowificonfigurator.BleConstant.Companion.SENSORS_SERVICE
 import fr.rtone.demowificonfigurator.BleConstant.Companion.SSID_CHAR
+import fr.rtone.demowificonfigurator.BleConstant.Companion.URL_CHAR
 import fr.rtone.demowificonfigurator.BleConstant.Companion.WIFI_SERVICE
 import fr.rtone.demowificonfigurator.MainActivity
 
@@ -24,7 +29,6 @@ import fr.rtone.demowificonfigurator.ble.BleClientState
 import fr.rtone.demowificonfigurator.ble.handler.BleHandler
 import fr.rtone.demowificonfigurator.ble.handler.BleParam
 import fr.rtone.demowificonfigurator.ble.handler.interfaces.*
-import java.lang.Thread.sleep
 
 // TODO: Rename parameter arguments, choose names that match
 // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
@@ -40,11 +44,18 @@ class ConnectedFragment : Fragment() {
     private lateinit var pbConnect: ProgressBar
     private lateinit var lblError: TextView
     private lateinit var viewWifiConfigurator: LinearLayout
+    private lateinit var viewMqttConfigurator: LinearLayout
+    private lateinit var viewSensorsConfigurator: LinearLayout
     private lateinit var editSsid: EditText
     private lateinit var editPassword: EditText
 
+    private lateinit var editUrl: EditText
+    private lateinit var editPort: EditText
+
     private lateinit var bleGatt: BluetoothGatt
     private lateinit var wifiService: BluetoothGattService
+    private lateinit var mqttService: BluetoothGattService
+    private lateinit var sensorsService: BluetoothGattService
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,8 +82,14 @@ class ConnectedFragment : Fragment() {
         lblError = view.findViewById(R.id.lblError)
 
         viewWifiConfigurator = view.findViewById(R.id.viewWifiConfigurator)
+        viewMqttConfigurator = view.findViewById(R.id.viewMqttConfigurator)
+        viewSensorsConfigurator = view.findViewById(R.id.viewSensorsConfigurator)
+
         editSsid = view.findViewById(R.id.editSsid)
         editPassword = view.findViewById(R.id.editPassword)
+
+        editUrl = view.findViewById(R.id.editUrl)
+        editPort = view.findViewById(R.id.editPort)
 
         btnConnect.setOnClickListener {
             client.connect()
@@ -92,6 +109,8 @@ class ConnectedFragment : Fragment() {
         lblError.text = ""
 
         viewWifiConfigurator.visibility = View.GONE
+        viewMqttConfigurator.visibility = View.GONE
+        viewSensorsConfigurator.visibility = View.GONE
 
         val lblName = view.findViewById<TextView>(R.id.lblName)
         if (lblName != null){
@@ -107,24 +126,33 @@ class ConnectedFragment : Fragment() {
             else
                 lblMac.text = ""
         }
-        val btnSave = view.findViewById<Button>(R.id.btnSave)
-        btnSave.setOnClickListener {
+
+        val btnSaveWifi = view.findViewById<Button>(R.id.btnSaveWifi)
+        btnSaveWifi.setOnClickListener {
             if (editSsid.text.isEmpty() || editPassword.text.isEmpty()) {
-                Toast.makeText(context, "You need an ssid", Toast.LENGTH_LONG)
+                Toast.makeText(context, "You need an ssid and password", Toast.LENGTH_LONG)
             } else {
-                val ssid = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == SSID_CHAR }
-                val password = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == PASSWORD_CHAR }
-                val action = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == ACTION_CHAR }
-                if (ssid != null && password != null && action != null){
+                if (client.sendString(WIFI_SERVICE, SSID_CHAR, editSsid.text.toString())){
                     it.isEnabled = false
                     btnDisconnect.isEnabled = false
                     pbConnect.visibility = View.VISIBLE
+                } else {
+                    Toast.makeText(context, "Error while sending data", Toast.LENGTH_LONG)
+                }
+            }
+        }
 
-                    ssid.setValue(editSsid.text.toString())
-                    password.setValue(editPassword.text.toString())
-                    action.value = byteArrayOf(0)
-
-                    bleGatt.writeCharacteristic(ssid)
+        val btnSaveMqtt = view.findViewById<Button>(R.id.btnSaveMqtt)
+        btnSaveMqtt.setOnClickListener {
+            if (editUrl.text.isEmpty() || editPort.text.isEmpty()) {
+                Toast.makeText(context, "You need an url and port", Toast.LENGTH_LONG)
+            } else {
+                if (client.sendString(MQTT_SERVICE, URL_CHAR, editUrl.text.toString())){
+                    it.isEnabled = false
+                    btnDisconnect.isEnabled = false
+                    pbConnect.visibility = View.VISIBLE
+                } else {
+                    Toast.makeText(context, "Error while sending data", Toast.LENGTH_LONG)
                 }
             }
         }
@@ -164,16 +192,6 @@ class ConnectedFragment : Fragment() {
             }
     }
 
-    private fun getFromBLEWifiData()
-    {
-        if (client.state != BleClientState.CONNECTED)
-            return
-        val ssid = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == SSID_CHAR }
-        if (ssid != null){
-            bleGatt.readCharacteristic(ssid)
-        }
-    }
-
     inner class BleListener(adapter: BleAdapter) : BleHandler(adapter),
 	    IBleDisconnected,
 	    IBleServiceDiscovered,
@@ -185,7 +203,10 @@ class ConnectedFragment : Fragment() {
 
         var needBond = false
         var bondAvailable = false
+
         var wifiServiceFound = false
+        var mqttServiceFound = false
+        var sensorsServiceFound = false
 
         override fun onBleNotBonded(param: BleParam) {
             bondAvailable = false
@@ -199,7 +220,14 @@ class ConnectedFragment : Fragment() {
             bondAvailable = true
             if (wifiServiceFound){
                 Thread {
-                    getFromBLEWifiData()
+                    client.read(WIFI_SERVICE, SSID_CHAR)
+                    client.read(WIFI_SERVICE, PASSWORD_CHAR)
+                }.start()
+            }
+            if (mqttServiceFound){
+                Thread {
+                    client.read(MQTT_SERVICE, URL_CHAR)
+                    client.read(MQTT_SERVICE, PORT_CHAR)
                 }.start()
             }
         }
@@ -207,18 +235,27 @@ class ConnectedFragment : Fragment() {
         override fun onBleCharWrite(param: BleParam) {
             when (param.char?.uuid.toString().substring(4, 8).toInt(16)){
                 SSID_CHAR -> {
-                    val password = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == PASSWORD_CHAR }
-                    if (password != null)
-                        bleGatt.writeCharacteristic(password)
+                    client.sendString(WIFI_SERVICE, PASSWORD_CHAR, editPassword.text.toString())
                 }
                 PASSWORD_CHAR -> {
-                    val action = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == ACTION_CHAR }
-                    if (action != null)
-                        bleGatt.writeCharacteristic(action)
+                    client.sendBytes(WIFI_SERVICE, WIFI_ACTION_CHAR, byteArrayOf(0))
                 }
-                ACTION_CHAR -> {
+                WIFI_ACTION_CHAR -> {
                     context.runOnUiThread {
-                        view?.findViewById<Button>(R.id.btnSave)?.isEnabled = true
+                        view?.findViewById<Button>(R.id.btnSaveWifi)?.isEnabled = true
+                        btnDisconnect.isEnabled = true
+                        pbConnect.visibility = View.GONE
+                    }
+                }
+                URL_CHAR -> {
+                    client.sendInt(MQTT_SERVICE, PORT_CHAR, editPort.text.toString().toInt(), FORMAT_UINT16)
+                }
+                PORT_CHAR -> {
+                    client.sendBytes(MQTT_SERVICE, MQTT_ACTION_CHAR, byteArrayOf(0))
+                }
+                MQTT_ACTION_CHAR -> {
+                    context.runOnUiThread {
+                        view?.findViewById<Button>(R.id.btnSaveMqtt)?.isEnabled = true
                         btnDisconnect.isEnabled = true
                         pbConnect.visibility = View.GONE
                     }
@@ -232,24 +269,20 @@ class ConnectedFragment : Fragment() {
                     context.runOnUiThread {
                         editSsid.text.replace(0, editSsid.text.length, param.char!!.getStringValue(0))
                     }
-                    val password = wifiService.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == PASSWORD_CHAR }
-                    if (password != null)
-                        bleGatt.readCharacteristic(password)
-                    else
-                        context.runOnUiThread {
-                            btnDisconnect.isEnabled = true
-                            btnConnect.isEnabled = false
-                            pbConnect.visibility = View.GONE
-                            viewWifiConfigurator.visibility = View.VISIBLE
-                        }
                 }
                 PASSWORD_CHAR -> {
                     context.runOnUiThread {
                         editPassword.text.replace(0, editPassword.text.length, param.char!!.getStringValue(0))
-                        viewWifiConfigurator.visibility = View.VISIBLE
-                        btnDisconnect.isEnabled = true
-                        btnConnect.isEnabled = false
-                        pbConnect.visibility = View.GONE
+                    }
+                }
+                URL_CHAR -> {
+                    context.runOnUiThread {
+                        editUrl.text.replace(0, editUrl.text.length, param.char!!.getStringValue(0))
+                    }
+                }
+                PORT_CHAR -> {
+                    context.runOnUiThread {
+                        editPort.text.replace(0, editPort.text.length, "${param.char!!.getIntValue(FORMAT_UINT16, 0)}")
                     }
                 }
             }
@@ -267,13 +300,32 @@ class ConnectedFragment : Fragment() {
                         context.runOnUiThread { viewWifiConfigurator.visibility = View.VISIBLE}
                         if (!needBond || bondAvailable) {
                             Thread {
-                                getFromBLEWifiData()
+                                client.read(WIFI_SERVICE, SSID_CHAR)
+                                client.read(WIFI_SERVICE, PASSWORD_CHAR)
                             }.start()
                         }
                     }
+                    MQTT_SERVICE -> {
+                        Log.d(TAG, "Mqtt service found !")
+                        mqttService = service
+                        mqttServiceFound = true
+                        context.runOnUiThread { viewMqttConfigurator.visibility = View.VISIBLE}
+                        if (!needBond || bondAvailable) {
+                            Thread {
+                                client.read(MQTT_SERVICE, URL_CHAR)
+                                client.read(MQTT_SERVICE, PORT_CHAR)
+                            }.start()
+                        }
+                    }
+                    SENSORS_SERVICE -> {
+                        Log.d(TAG, "Sensors service found !")
+                        sensorsService = service
+                        sensorsServiceFound = true
+                        context.runOnUiThread { viewSensorsConfigurator.visibility = View.VISIBLE}
+                    }
                 }
             }
-            if (!wifiServiceFound) {
+            if (!wifiServiceFound && !mqttServiceFound && !sensorsServiceFound) {
                 context.runOnUiThread {
                     lblError.visibility = View.VISIBLE
                     lblError.text = "Unhandle device"
@@ -292,6 +344,8 @@ class ConnectedFragment : Fragment() {
                 btnDisconnect.isEnabled = false
                 pbConnect.visibility = View.GONE
                 viewWifiConfigurator.visibility = View.GONE
+                viewMqttConfigurator.visibility = View.GONE
+                viewSensorsConfigurator.visibility = View.GONE
                 lblError.visibility = View.GONE
                 Toast.makeText(context, "You are now disconnected", Toast.LENGTH_LONG)
             }

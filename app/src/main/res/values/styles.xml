@@ -8,4 +8,12 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <style name="Container">
+    </style>
+    <style name="TextContainer">
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+    <style name="SubmitContainer">
+        <item name="android:background">#00BCD4</item>
+    </style>
 </resources>
