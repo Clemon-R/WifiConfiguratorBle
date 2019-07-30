@@ -193,12 +193,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent">
 
-                    <TableRow android:layout_width="0dp" android:layout_height="match_parent">
+                    <TableRow android:layout_width="match_parent" android:layout_height="match_parent">
                         <TableRow android:layout_width="match_parent" android:layout_height="match_parent"
-                                  android:layout_weight="0.5">
+                        >
                             <Switch
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="match_parent" android:id="@+id/switch1"/>
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent" android:id="@+id/sensorsState"
+                                    android:gravity="end"/>
                         </TableRow>
                         <TableRow android:layout_width="match_parent" android:layout_height="match_parent"
                                   android:layout_weight="0.5">
@@ -208,67 +209,28 @@
                                     android:layout_height="match_parent" android:id="@+id/textView11"
                                     android:gravity="center_vertical"/>
                         </TableRow>
-                        <TableRow android:layout_width="match_parent" android:layout_height="match_parent">
+                    </TableRow>
+                    <TableRow
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent">
+                        <TableRow android:layout_width="match_parent" android:layout_height="match_parent"
+                                  android:layout_weight="0">
                             <TextView
                                     style="@style/TextContainer"
-                                    android:text="Delai :"
-                                    android:layout_width="wrap_content"
+                                    android:text="Delai (ms):"
+                                    android:layout_width="match_parent"
                                     android:layout_height="match_parent" android:id="@+id/textView12"
-                                    android:gravity="center_vertical"/>
+                                    android:gravity="center_vertical|end" android:layout_weight="0"/>
                         </TableRow>
                         <TableRow
                                 android:layout_width="match_parent"
-                                android:layout_height="match_parent">
+                                android:layout_height="match_parent" android:layout_weight="1">
                             <EditText
-                                    android:layout_width="wrap_content"
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:inputType="number"
                                     android:ems="10"
-                                    android:id="@+id/editText3"/>
-                        </TableRow>
-                    </TableRow>
-                    <TableRow
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent">
-                        <TableRow
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent" android:layout_weight="0.5">
-                            <CheckBox
-                                    style="@style/TextContainer"
-                                    android:text="Temperature"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" android:id="@+id/checkBox"/>
-                        </TableRow>
-                        <TableRow
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent" android:layout_weight="0.5">
-                            <CheckBox
-                                    style="@style/TextContainer"
-                                    android:text="Humidity"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" android:id="@+id/checkBox2"/>
-                        </TableRow>
-                    </TableRow>
-                    <TableRow
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent">
-                        <TableRow
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent" android:layout_weight="0.5">
-                            <CheckBox
-                                    style="@style/TextContainer"
-                                    android:text="Pressure"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" android:id="@+id/checkBox"/>
-                        </TableRow>
-                        <TableRow
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent" android:layout_weight="0.5">
-                            <CheckBox
-                                    style="@style/TextContainer"
-                                    android:text="Color"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" android:id="@+id/checkBox2"/>
+                                    android:id="@+id/editDelai" android:autofillHints=""/>
                         </TableRow>
                     </TableRow>
                 </TableLayout>

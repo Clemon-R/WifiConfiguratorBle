@@ -22,7 +22,9 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
 
     var state: BleClientState = BleClientState.DISCONNECTED
     private var isReading = false
+    private var isWriting = false
     private val nextToBeRead: MutableList<BluetoothGattCharacteristic> = mutableListOf()
+    private val nextToBeWrite: MutableList<BluetoothGattCharacteristic> = mutableListOf()
 
     init {
         this.init()
@@ -136,6 +138,14 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
                 status: Int
             ) {
                 super.onCharacteristicWrite(gatt, characteristic, status)
+                isWriting = false
+                while (nextToBeWrite.isNotEmpty() && !isWriting){
+                    val char = nextToBeWrite[0]
+                    val result = bluetoothGatt!!.writeCharacteristic(char)
+                    if (result)
+                        nextToBeWrite.removeAt(0)
+                    isWriting = result
+                }
                 adapter.applyAction(BleHandlerType.CHAR_WRITE, this@BleClient, gatt, characteristic, status == GATT_SUCCESS)
             }
 
@@ -175,13 +185,24 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
             return false
         val service = services[serviceUuid] ?: return false
         var char = service.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == charUuid} ?: return false
-        if (!nextToBeRead.isEmpty() || isReading) {
+        if (nextToBeRead.isNotEmpty() || isReading) {
             nextToBeRead += char
             return true
         }
         val result = bluetoothGatt!!.readCharacteristic(char)
         if (result)
             isReading = true
+        return result
+    }
+
+    private fun send(char: BluetoothGattCharacteristic) : Boolean
+    {
+        if (isWriting){
+            nextToBeWrite += char
+            return true
+        }
+        val result = bluetoothGatt!!.writeCharacteristic(char)
+        isWriting = result
         return result
     }
 
@@ -192,7 +213,7 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
         val service = services[serviceUuid] ?: return false
         var char = service.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == charUuid} ?: return false
         char.setValue(data)
-        return bluetoothGatt!!.writeCharacteristic(char)
+        return send(char)
     }
 
     @Synchronized fun sendBytes(serviceUuid: Int, charUuid: Int, data: ByteArray): Boolean
@@ -202,7 +223,7 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
         val service = services[serviceUuid] ?: return false
         var char = service.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == charUuid} ?: return false
         char.value = data
-        return bluetoothGatt!!.writeCharacteristic(char)
+        return send(char)
     }
 
     @Synchronized fun sendInt(serviceUuid: Int, charUuid: Int, data: Int, format: Int): Boolean
@@ -212,6 +233,6 @@ class BleClient(val device: BluetoothDevice, val adapter: BleAdapter)
         val service = services[serviceUuid] ?: return false
         var char = service.characteristics.find { it.uuid.toString().substring(4, 8).toInt(16) == charUuid} ?: return false
         char.setValue(data, format, 0)
-        return bluetoothGatt!!.writeCharacteristic(char)
+        return send(char)
     }
 }

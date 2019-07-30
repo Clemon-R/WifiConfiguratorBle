@@ -1,7 +1,7 @@
 package fr.rtone.demowificonfigurator.fragments
 
 import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothGattCharacteristic.FORMAT_UINT16
+import android.bluetooth.BluetoothGattCharacteristic.*
 import android.bluetooth.BluetoothGattService
 import android.content.Context
 import android.os.Bundle
@@ -11,11 +11,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import fr.rtone.demowificonfigurator.BleConstant.Companion.DELAI_CHAR
 import fr.rtone.demowificonfigurator.BleConstant.Companion.MQTT_ACTION_CHAR
 import fr.rtone.demowificonfigurator.BleConstant.Companion.MQTT_SERVICE
 import fr.rtone.demowificonfigurator.BleConstant.Companion.WIFI_ACTION_CHAR
 import fr.rtone.demowificonfigurator.BleConstant.Companion.PASSWORD_CHAR
 import fr.rtone.demowificonfigurator.BleConstant.Companion.PORT_CHAR
+import fr.rtone.demowificonfigurator.BleConstant.Companion.SENSORS_ENABLE_CHAR
 import fr.rtone.demowificonfigurator.BleConstant.Companion.SENSORS_SERVICE
 import fr.rtone.demowificonfigurator.BleConstant.Companion.SSID_CHAR
 import fr.rtone.demowificonfigurator.BleConstant.Companion.URL_CHAR
@@ -48,6 +50,8 @@ class ConnectedFragment : Fragment() {
     private lateinit var viewSensorsConfigurator: LinearLayout
     private lateinit var editSsid: EditText
     private lateinit var editPassword: EditText
+    private lateinit var editDelai: EditText
+    private lateinit var sensorsState: Switch
 
     private lateinit var editUrl: EditText
     private lateinit var editPort: EditText
@@ -91,6 +95,9 @@ class ConnectedFragment : Fragment() {
         editUrl = view.findViewById(R.id.editUrl)
         editPort = view.findViewById(R.id.editPort)
 
+        editDelai = view.findViewById(R.id.editDelai)
+        sensorsState = view.findViewById(R.id.sensorsState)
+
         btnConnect.setOnClickListener {
             client.connect()
             btnConnect.isEnabled = false
@@ -133,6 +140,8 @@ class ConnectedFragment : Fragment() {
                 Toast.makeText(context, "You need an ssid and password", Toast.LENGTH_LONG)
             } else {
                 if (client.sendString(WIFI_SERVICE, SSID_CHAR, editSsid.text.toString())){
+                    client.sendString(WIFI_SERVICE, PASSWORD_CHAR, editPassword.text.toString())
+                    client.sendBytes(WIFI_SERVICE, WIFI_ACTION_CHAR, byteArrayOf(0))
                     it.isEnabled = false
                     btnDisconnect.isEnabled = false
                     pbConnect.visibility = View.VISIBLE
@@ -148,9 +157,24 @@ class ConnectedFragment : Fragment() {
                 Toast.makeText(context, "You need an url and port", Toast.LENGTH_LONG)
             } else {
                 if (client.sendString(MQTT_SERVICE, URL_CHAR, editUrl.text.toString())){
+                    client.sendInt(MQTT_SERVICE, PORT_CHAR, editPort.text.toString().toInt(), FORMAT_UINT16)
+                    client.sendBytes(MQTT_SERVICE, MQTT_ACTION_CHAR, byteArrayOf(0))
                     it.isEnabled = false
                     btnDisconnect.isEnabled = false
                     pbConnect.visibility = View.VISIBLE
+                } else {
+                    Toast.makeText(context, "Error while sending data", Toast.LENGTH_LONG)
+                }
+            }
+        }
+
+        val btnSaveSensors = view.findViewById<Button>(R.id.btnSaveSensors)
+        btnSaveSensors.setOnClickListener {
+            if (editDelai.text.isEmpty()) {
+                Toast.makeText(context, "You need a delai", Toast.LENGTH_LONG)
+            } else {
+                if (client.sendInt(SENSORS_SERVICE, SENSORS_ENABLE_CHAR, (if (sensorsState.isChecked) 1 else 0), FORMAT_UINT8)){
+                    client.sendInt(SENSORS_SERVICE, DELAI_CHAR, editDelai.text.toString().toInt(), FORMAT_UINT32)
                 } else {
                     Toast.makeText(context, "Error while sending data", Toast.LENGTH_LONG)
                 }
@@ -230,28 +254,22 @@ class ConnectedFragment : Fragment() {
                     client.read(MQTT_SERVICE, PORT_CHAR)
                 }.start()
             }
+            if (sensorsServiceFound){
+                Thread {
+                    client.read(SENSORS_SERVICE, SENSORS_ENABLE_CHAR)
+                    client.read(SENSORS_SERVICE, DELAI_CHAR)
+                }.start()
+            }
         }
 
         override fun onBleCharWrite(param: BleParam) {
             when (param.char?.uuid.toString().substring(4, 8).toInt(16)){
-                SSID_CHAR -> {
-                    client.sendString(WIFI_SERVICE, PASSWORD_CHAR, editPassword.text.toString())
-                }
-                PASSWORD_CHAR -> {
-                    client.sendBytes(WIFI_SERVICE, WIFI_ACTION_CHAR, byteArrayOf(0))
-                }
                 WIFI_ACTION_CHAR -> {
                     context.runOnUiThread {
                         view?.findViewById<Button>(R.id.btnSaveWifi)?.isEnabled = true
                         btnDisconnect.isEnabled = true
                         pbConnect.visibility = View.GONE
                     }
-                }
-                URL_CHAR -> {
-                    client.sendInt(MQTT_SERVICE, PORT_CHAR, editPort.text.toString().toInt(), FORMAT_UINT16)
-                }
-                PORT_CHAR -> {
-                    client.sendBytes(MQTT_SERVICE, MQTT_ACTION_CHAR, byteArrayOf(0))
                 }
                 MQTT_ACTION_CHAR -> {
                     context.runOnUiThread {
@@ -283,6 +301,16 @@ class ConnectedFragment : Fragment() {
                 PORT_CHAR -> {
                     context.runOnUiThread {
                         editPort.text.replace(0, editPort.text.length, "${param.char!!.getIntValue(FORMAT_UINT16, 0)}")
+                    }
+                }
+                SENSORS_ENABLE_CHAR -> {
+                    context.runOnUiThread {
+                        sensorsState.isChecked = param.char!!.getIntValue(FORMAT_UINT8, 0) == 1
+                    }
+                }
+                DELAI_CHAR -> {
+                    context.runOnUiThread {
+                        editDelai.text.replace(0, editDelai.text.length, "${param.char!!.getIntValue(FORMAT_UINT32, 0)}")
                     }
                 }
             }
@@ -322,6 +350,12 @@ class ConnectedFragment : Fragment() {
                         sensorsService = service
                         sensorsServiceFound = true
                         context.runOnUiThread { viewSensorsConfigurator.visibility = View.VISIBLE}
+                        if (!needBond || bondAvailable) {
+                            Thread {
+                                client.read(SENSORS_SERVICE, SENSORS_ENABLE_CHAR)
+                                client.read(SENSORS_SERVICE, DELAI_CHAR)
+                            }.start()
+                        }
                     }
                 }
             }
