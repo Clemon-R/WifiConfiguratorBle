@@ -130,7 +130,9 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent">
 
-                    <TableRow android:layout_width="0dp" android:layout_height="match_parent">
+                    <TableRow
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent">
                         <TableRow android:layout_width="match_parent" android:layout_height="match_parent">
                             <TextView
                                     style="@style/TextContainer"
@@ -143,12 +145,14 @@
                                 android:layout_width="0dp"
                                 android:layout_height="match_parent" android:layout_weight="0.5">
                             <EditText
-                                    android:layout_width="wrap_content"
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:inputType="textPersonName"
                                     android:ems="10"
                                     android:id="@+id/editUrl"/>
                         </TableRow>
+                    </TableRow>
+                    <TableRow android:layout_width="0dp" android:layout_height="match_parent">
                         <TableRow android:layout_width="wrap_content" android:layout_height="match_parent">
                             <TextView
                                     style="@style/TextContainer"
@@ -160,7 +164,7 @@
                         <TableRow android:layout_width="0dp" android:layout_height="match_parent"
                                   android:layout_weight="0.5">
                             <EditText
-                                    android:layout_width="wrap_content"
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:inputType="number"
                                     android:ems="10"
@@ -199,7 +203,7 @@
                             <Switch
                                     android:layout_width="match_parent"
                                     android:layout_height="match_parent" android:id="@+id/sensorsState"
-                                    android:gravity="end"/>
+                                    android:gravity="center_vertical|end"/>
                         </TableRow>
                         <TableRow android:layout_width="match_parent" android:layout_height="match_parent"
                                   android:layout_weight="0.5">
@@ -209,10 +213,6 @@
                                     android:layout_height="match_parent" android:id="@+id/textView11"
                                     android:gravity="center_vertical"/>
                         </TableRow>
-                    </TableRow>
-                    <TableRow
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent">
                         <TableRow android:layout_width="match_parent" android:layout_height="match_parent"
                                   android:layout_weight="0">
                             <TextView
@@ -232,6 +232,10 @@
                                     android:ems="10"
                                     android:id="@+id/editDelai" android:autofillHints=""/>
                         </TableRow>
+                    </TableRow>
+                    <TableRow
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent">
                     </TableRow>
                 </TableLayout>
                 <Button
